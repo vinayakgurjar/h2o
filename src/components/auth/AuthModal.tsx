@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile, UserRole } from '../../types';
 import { store, INITIAL_USERS } from '../../services/store';
-import { signInWithGoogle } from '../../services/firebase';
+import { signInWithGoogle, sendResetPassword } from '../../services/firebaseAuth';
 import {
   X,
   Lock,
@@ -16,6 +16,7 @@ import {
   Sparkles,
   KeyRound,
   AlertCircle,
+  HelpCircle,
 } from 'lucide-react';
 
 interface AuthModalProps {
@@ -29,7 +30,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onAuthSuccess,
 }) => {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -127,6 +128,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
     } catch {
       setError('Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!email.trim() || !email.includes('@')) {
+      setError('Please provide a valid registered email address');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await sendResetPassword(email);
+      if (res.success) {
+        setSuccessMessage(res.message || 'Password reset link sent to your email.');
+      } else {
+        setError(res.error || 'Failed to dispatch reset email.');
+      }
+    } catch {
+      setError('Could not process password reset request.');
     } finally {
       setLoading(false);
     }
@@ -317,9 +341,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#1A1817] mb-1.5">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-[#1A1817]">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('forgot');
+                      setError(null);
+                      setSuccessMessage(null);
+                    }}
+                    className="text-[11px] text-[#D92365] hover:underline font-semibold cursor-pointer"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
                   <input
@@ -489,6 +526,63 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {loading ? 'Creating Account...' : 'Register & Log In'}
                 <Sparkles className="w-4 h-4" />
               </button>
+            </form>
+          )}
+
+          {/* Forgot Password View */}
+          {mode === 'forgot' && (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-stone-700 text-xs">
+                <p className="font-semibold text-stone-900 mb-1 flex items-center gap-1.5">
+                  <HelpCircle className="w-4 h-4 text-[#D92365]" />
+                  Firebase Password Recovery
+                </p>
+                <p>
+                  Enter your registered email address below. Firebase Authentication will dispatch a secure password reset link to your inbox.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#1A1817] mb-1.5">
+                  Registered Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+                  <input
+                    id="forgot-email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="e.g. yourname@company.com"
+                    className="w-full bg-white pl-9 pr-3 py-2.5 rounded-xl border border-[#D5CCC0] text-sm text-[#1A1817] focus:outline-hidden focus:border-[#D92365] focus:ring-1 focus:ring-[#D92365]"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                id="submit-forgot-btn"
+                disabled={loading}
+                className="w-full py-2.5 rounded-xl bg-[#D92365] hover:bg-[#B81D53] text-white font-semibold text-sm transition-all shadow-md hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {loading ? 'Dispatching link...' : 'Send Password Reset Email'}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <div className="text-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('login');
+                    setError(null);
+                    setSuccessMessage(null);
+                  }}
+                  className="text-xs text-stone-600 hover:text-[#1A1817] font-semibold underline cursor-pointer"
+                >
+                  ← Back to Sign In
+                </button>
+              </div>
             </form>
           )}
 

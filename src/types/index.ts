@@ -416,6 +416,24 @@ export interface PricingRule {
   updatedAt: string;
 }
 
+export interface Product {
+  id: string;
+  name: string;
+  size: BottleSize;
+  style: BottleStyle;
+  tagline: string;
+  description: string;
+  basePrice: number;
+  moq: number;
+  labelType: string;
+  unitsPerCrate: number;
+  imageUrl?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  userId?: string;
+}
+
 export interface InventoryItem {
   id: string;
   sku: string;

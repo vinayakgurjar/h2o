@@ -8,6 +8,7 @@ import {
   Customer,
   Quote,
   Order,
+  Product,
   DesignProject,
   ProductionJob,
   PaymentTransaction,
@@ -27,8 +28,39 @@ import {
   WhatsAppTemplate,
 } from '../types';
 import { showToast } from '../utils/toast';
-
-const STORAGE_KEY = 'h2o_brand_b2b_os_v3';
+import {
+  saveDocument,
+  deleteDocument,
+  subscribeToCollection,
+  subscribeToCompanySettings,
+  seedInitialFirestoreData,
+} from './firestoreDb';
+import {
+  INITIAL_CATALOG_PRODUCTS,
+  syncUserLeads,
+  syncUserOrders,
+  syncProducts,
+  fetchUserLeads,
+  fetchUserOrders,
+  fetchProducts,
+  createLeadInFirestore,
+  updateLeadInFirestore,
+  deleteLeadFromFirestore,
+  createOrderInFirestore,
+  updateOrderInFirestore,
+  deleteOrderFromFirestore,
+  createProductInFirestore,
+  updateProductInFirestore,
+  deleteProductFromFirestore,
+  seedInitialProductsIfEmpty,
+} from './firestoreService';
+import {
+  loginWithEmail,
+  registerWithEmail,
+  logoutUser,
+  initAuthStateListener,
+  getCurrentAuthUser,
+} from './firebaseAuth';
 
 export const INITIAL_COMPANY_SETTINGS: CompanySettings = {
   companyName: 'H2O Energy & Custom Bottling Co.',
@@ -797,6 +829,7 @@ export interface AppState {
   customers: Customer[];
   quotes: Quote[];
   orders: Order[];
+  products: Product[];
   designProjects: DesignProject[];
   productionJobs: ProductionJob[];
   inventory: InventoryItem[];
@@ -810,6 +843,7 @@ export interface AppState {
   payments: PaymentTransaction[];
   deliveries: DeliveryRecord[];
   users: UserProfile[];
+  isFirestoreLoading: boolean;
 }
 
 export const INITIAL_USERS: UserProfile[] = [
@@ -826,51 +860,31 @@ export const INITIAL_USERS: UserProfile[] = [
 
 const DEFAULT_USER: UserProfile = INITIAL_USERS[0];
 
-async function hashPassword(plain: string): Promise<string> {
-  try {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(plain);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-  } catch {
-    return `hash_${plain.length}_${plain.slice(0, 3)}`;
-  }
-}
+const DEFAULT_GUEST_USER: UserProfile = {
+  id: 'guest',
+  name: 'Guest Client',
+  email: 'guest@leelapalace.com',
+  role: 'VIEWER',
+  active: false,
+};
 
 class Store {
   private state: AppState;
   private listeners: Set<() => void> = new Set();
+  private unsubscribers: Array<() => void> = [];
 
   constructor() {
-    this.state = this.loadFromStorage();
+    this.state = this.getInitialState();
+    this.initFirestoreSync();
   }
 
-  private loadFromStorage(): AppState {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return {
-          ...parsed,
-          currentUser: parsed.currentUser || DEFAULT_USER,
-          whatsappTemplates: parsed.whatsappTemplates || INITIAL_WHATSAPP_TEMPLATES,
-          payments: parsed.payments || INITIAL_PAYMENTS,
-          complianceRecords: parsed.complianceRecords || INITIAL_COMPLIANCE_RECORDS,
-          auditLogs: parsed.auditLogs || INITIAL_AUDIT_LOGS,
-          deliveries: parsed.deliveries || INITIAL_DELIVERIES,
-          users: parsed.users || INITIAL_USERS,
-        };
-      }
-    } catch (e) {
-      console.warn('Failed to load store from localStorage', e);
-    }
-
+  private getInitialState(): AppState {
     return {
       leads: INITIAL_LEADS,
       customers: INITIAL_CUSTOMERS,
       quotes: INITIAL_QUOTES,
       orders: INITIAL_ORDERS,
+      products: INITIAL_CATALOG_PRODUCTS,
       designProjects: INITIAL_DESIGN_PROJECTS,
       productionJobs: INITIAL_PRODUCTION_JOBS,
       inventory: INITIAL_INVENTORY,
@@ -884,15 +898,136 @@ class Store {
       payments: INITIAL_PAYMENTS,
       deliveries: INITIAL_DELIVERIES,
       users: INITIAL_USERS,
+      isFirestoreLoading: true,
     };
   }
 
-  private saveToStorage() {
+  public initFirestoreSync() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
-    } catch (e) {
-      console.warn('Failed to save to localStorage', e);
+      // 1. Seed initial enterprise records and products to Cloud Firestore if collections are empty
+      seedInitialFirestoreData({
+        leads: INITIAL_LEADS,
+        customers: INITIAL_CUSTOMERS,
+        quotes: INITIAL_QUOTES,
+        orders: INITIAL_ORDERS,
+        inventory: INITIAL_INVENTORY,
+        tasks: INITIAL_TASKS,
+        complianceRecords: INITIAL_COMPLIANCE_RECORDS,
+        companySettings: INITIAL_COMPANY_SETTINGS,
+      });
+
+      seedInitialProductsIfEmpty();
+
+      let pendingCollections = 3;
+      const markCollectionSynced = () => {
+        pendingCollections--;
+        if (pendingCollections <= 0 && this.state.isFirestoreLoading) {
+          this.state.isFirestoreLoading = false;
+          this.notify();
+        }
+      };
+
+      // Safety timeout so skeletons smoothly dissolve even if network is delayed
+      setTimeout(() => {
+        if (this.state.isFirestoreLoading) {
+          this.state.isFirestoreLoading = false;
+          this.notify();
+        }
+      }, 750);
+
+      // 2. Real-time Firestore synchronization listeners (Leads, Orders, Products, etc.)
+      this.unsubscribers.push(
+        syncUserLeads((remoteLeads) => {
+          if (remoteLeads && remoteLeads.length > 0) {
+            this.state.leads = remoteLeads;
+          }
+          markCollectionSynced();
+          this.notify();
+        })
+      );
+
+      this.unsubscribers.push(
+        syncUserOrders((remoteOrders) => {
+          if (remoteOrders && remoteOrders.length > 0) {
+            this.state.orders = remoteOrders;
+          }
+          markCollectionSynced();
+          this.notify();
+        })
+      );
+
+      this.unsubscribers.push(
+        syncProducts((remoteProducts) => {
+          if (remoteProducts && remoteProducts.length > 0) {
+            this.state.products = remoteProducts;
+          }
+          markCollectionSynced();
+          this.notify();
+        })
+      );
+
+      this.unsubscribers.push(
+        subscribeToCollection<Quote>('quotes', (remoteQuotes) => {
+          if (remoteQuotes && remoteQuotes.length > 0) {
+            this.state.quotes = remoteQuotes;
+            this.notify();
+          }
+        })
+      );
+
+      this.unsubscribers.push(
+        subscribeToCollection<Customer>('customers', (remoteCustomers) => {
+          if (remoteCustomers && remoteCustomers.length > 0) {
+            this.state.customers = remoteCustomers;
+            this.notify();
+          }
+        })
+      );
+
+      this.unsubscribers.push(
+        subscribeToCollection<InventoryItem>('inventory', (remoteInventory) => {
+          if (remoteInventory && remoteInventory.length > 0) {
+            this.state.inventory = remoteInventory;
+            this.notify();
+          }
+        })
+      );
+
+      this.unsubscribers.push(
+        subscribeToCollection<Task>('tasks', (remoteTasks) => {
+          if (remoteTasks && remoteTasks.length > 0) {
+            this.state.tasks = remoteTasks;
+            this.notify();
+          }
+        })
+      );
+
+      this.unsubscribers.push(
+        subscribeToCompanySettings((settings) => {
+          if (settings) {
+            this.state.companySettings = { ...this.state.companySettings, ...settings };
+            this.notify();
+          }
+        })
+      );
+
+      // 3. Persistent Firebase Auth state listener
+      this.unsubscribers.push(
+        initAuthStateListener((authProfile) => {
+          if (authProfile) {
+            this.state.currentUser = authProfile;
+          } else {
+            this.state.currentUser = DEFAULT_GUEST_USER;
+          }
+          this.notify();
+        })
+      );
+    } catch (err) {
+      console.warn('[Store] Firestore synchronization notice:', err);
     }
+  }
+
+  private saveToStorage() {
     this.notify();
   }
 
@@ -911,11 +1046,44 @@ class Store {
     return this.state;
   }
 
+  public isFirestoreLoading(): boolean {
+    return this.state.isFirestoreLoading;
+  }
+
+  public setFirestoreLoading(loading: boolean) {
+    this.state.isFirestoreLoading = loading;
+    this.notify();
+  }
+
+  public async refreshFirestoreData(): Promise<void> {
+    this.state.isFirestoreLoading = true;
+    this.notify();
+    try {
+      const [freshLeads, freshOrders, freshProducts] = await Promise.all([
+        fetchUserLeads(),
+        fetchUserOrders(),
+        fetchProducts(),
+      ]);
+      if (freshLeads.length > 0) this.state.leads = freshLeads;
+      if (freshOrders.length > 0) this.state.orders = freshOrders;
+      if (freshProducts.length > 0) this.state.products = freshProducts;
+    } catch (err) {
+      console.warn('[Store] Firestore refresh error:', err);
+    } finally {
+      setTimeout(() => {
+        this.state.isFirestoreLoading = false;
+        this.notify();
+      }, 500);
+    }
+  }
+
   public setCurrentUserRole(role: UserRole) {
     this.state.currentUser = {
       ...this.state.currentUser,
       role,
     };
+    saveDocument('users', this.state.currentUser.id, { role });
+    saveDocument('user_profiles', this.state.currentUser.id, { role });
     this.saveToStorage();
   }
 
@@ -1066,6 +1234,7 @@ class Store {
       internalNotes: `Reordered from ${existing.orderNumber}. Cloned bottle size (${existing.bottleSize}), style (${existing.bottleStyle}), cap color (${existing.customization?.capColor || '#111118'}), quantity (${existing.quantity}) and customer details.`,
     };
     this.state.orders.unshift(newOrder);
+    createOrderInFirestore(newOrder);
     this.addAuditLog('REORDER_CREATED', 'Order', newOrder.id, `Reorder initiated from order ${existing.orderNumber}`);
     this.saveToStorage();
     return newOrder;
@@ -1129,12 +1298,13 @@ class Store {
     };
 
     this.state.leads.unshift(newLead);
+    createLeadInFirestore(newLead);
 
     // Create automated task for sales team
     const followUpDate = new Date();
     followUpDate.setDate(followUpDate.getDate() + 1);
 
-    this.state.tasks.unshift({
+    const initialTask: Task = {
       id: `task-${Date.now()}`,
       title: `Call new lead: ${newLead.businessName}`,
       assignedTo: 'Ananya Sharma',
@@ -1146,7 +1316,9 @@ class Store {
       type: 'Call',
       notes: `Inquired for ${newLead.quantity} units of ${newLead.bottleSize}. Required by: ${newLead.requiredDate || 'TBD'}.`,
       createdAt: new Date().toISOString(),
-    });
+    };
+    this.state.tasks.unshift(initialTask);
+    saveDocument('tasks', initialTask.id, initialTask);
 
     // Audit log
     this.addAuditLog(
@@ -1166,6 +1338,7 @@ class Store {
     const oldStage = lead.stage;
     lead.stage = newStage;
     lead.updatedAt = new Date().toISOString();
+    updateLeadInFirestore(lead.id, lead);
 
     this.addAuditLog(
       'LEAD_STAGE_CHANGED',
@@ -1182,6 +1355,7 @@ class Store {
     if (!lead) return;
     lead.assignedTo = assignedTo;
     lead.updatedAt = new Date().toISOString();
+    updateLeadInFirestore(lead.id, lead);
 
     this.addAuditLog(
       'LEAD_ASSIGNED',
@@ -1229,6 +1403,9 @@ class Store {
     };
 
     this.state.customers.unshift(newCust);
+    saveDocument('customers', newCust.id, newCust);
+    saveDocument('leads', lead.id, { ...lead, stage: 'CONVERTED' });
+
     this.addAuditLog(
       'CUSTOMER_CREATED',
       'Customer',
@@ -1278,6 +1455,7 @@ class Store {
     };
 
     this.state.quotes.unshift(newQuote);
+    saveDocument('quotes', newQuote.id, newQuote);
     this.addAuditLog('QUOTE_CREATED', 'Quote', newQuote.id, `Created quotation ${newQuote.quoteNumber}`);
     this.saveToStorage();
     return newQuote;
@@ -1291,6 +1469,7 @@ class Store {
     if (status === 'SENT') q.sentAt = new Date().toISOString();
     if (status === 'ACCEPTED') q.acceptedAt = new Date().toISOString();
 
+    saveDocument('quotes', q.id, q);
     this.addAuditLog('QUOTE_STATUS_CHANGED', 'Quote', quoteId, `Status updated to ${status}`);
     this.saveToStorage();
   }
@@ -1445,6 +1624,10 @@ class Store {
       `Converted quote ${quote.quoteNumber} into Order ${newOrder.orderNumber}`
     );
 
+    createOrderInFirestore(newOrder);
+    saveDocument('quotes', quote.id, quote);
+    saveDocument('customers', customer.id, customer);
+
     this.saveToStorage();
     return newOrder;
   }
@@ -1477,7 +1660,7 @@ class Store {
       // Auto create future repeat order task 21 days out!
       const reorderDate = new Date();
       reorderDate.setDate(reorderDate.getDate() + 21);
-      this.state.tasks.unshift({
+      const reorderTask: Task = {
         id: `task-${Date.now()}`,
         title: `Reorder Check: ${order.businessName}`,
         assignedTo: order.assignedStaff || 'Ananya Sharma',
@@ -1489,8 +1672,12 @@ class Store {
         type: 'General',
         notes: `Order ${order.orderNumber} (${order.quantity} pcs) was delivered. Check customer stock levels for repeat order.`,
         createdAt: new Date().toISOString(),
-      });
+      };
+      this.state.tasks.unshift(reorderTask);
+      saveDocument('tasks', reorderTask.id, reorderTask);
     }
+
+    updateOrderInFirestore(order.id, order);
 
     this.addAuditLog(
       'ORDER_STATUS_CHANGED',
@@ -1518,6 +1705,8 @@ class Store {
       if (active) active.approved = true;
     }
 
+    updateOrderInFirestore(order.id, order);
+
     this.addAuditLog(
       'ARTWORK_APPROVED',
       'Order',
@@ -1542,7 +1731,10 @@ class Store {
     const cust = this.state.customers.find((c) => c.id === order.customerId);
     if (cust) {
       cust.outstandingAmount = Math.max(0, cust.outstandingAmount - amount);
+      saveDocument('customers', cust.id, cust);
     }
+
+    updateOrderInFirestore(order.id, order);
 
     this.addAuditLog(
       'PAYMENT_RECORDED',
@@ -1572,7 +1764,7 @@ class Store {
   }
 
   public addAuditLog(action: string, entity: string, entityId: string, details: string) {
-    this.state.auditLogs.unshift({
+    const newLog: AuditLog = {
       id: `aud-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       timestamp: new Date().toISOString(),
       userName: this.state.currentUser.name,
@@ -1581,12 +1773,23 @@ class Store {
       entity,
       entityId,
       details,
-    });
+    };
+    this.state.auditLogs.unshift(newLog);
+    saveDocument('audit_logs', newLog.id, newLog);
   }
 
   public resetToDemoData() {
-    localStorage.removeItem(STORAGE_KEY);
-    this.state = this.loadFromStorage();
+    this.state = this.getInitialState();
+    seedInitialFirestoreData({
+      leads: INITIAL_LEADS,
+      customers: INITIAL_CUSTOMERS,
+      quotes: INITIAL_QUOTES,
+      orders: INITIAL_ORDERS,
+      inventory: INITIAL_INVENTORY,
+      tasks: INITIAL_TASKS,
+      complianceRecords: INITIAL_COMPLIANCE_RECORDS,
+      companySettings: INITIAL_COMPANY_SETTINGS,
+    });
     this.notify();
   }
 
@@ -1621,6 +1824,7 @@ class Store {
     if (item) {
       item.currentStock += qty;
       item.availableQuantity = item.currentStock;
+      saveDocument('inventory', item.id, item);
       this.addAuditLog(
         'INVENTORY_RESTOCKED',
         'InventoryItem',
@@ -1629,6 +1833,43 @@ class Store {
       );
       this.saveToStorage();
     }
+  }
+
+  // --- Products Catalog Service ---
+  public getProducts(): Product[] {
+    return this.state.products;
+  }
+
+  public async addProduct(productData: Omit<Product, 'id'> & { id?: string }): Promise<Product> {
+    const newProd = await createProductInFirestore(productData);
+    this.state.products.unshift(newProd);
+    this.addAuditLog('PRODUCT_CREATED', 'Product', newProd.id, `Created product ${newProd.name}`);
+    this.saveToStorage();
+    return newProd;
+  }
+
+  public async updateProduct(productId: string, updates: Partial<Product>): Promise<boolean> {
+    const idx = this.state.products.findIndex((p) => p.id === productId);
+    if (idx >= 0) {
+      this.state.products[idx] = {
+        ...this.state.products[idx],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+      await updateProductInFirestore(productId, updates);
+      this.addAuditLog('PRODUCT_UPDATED', 'Product', productId, `Updated product fields`);
+      this.saveToStorage();
+      return true;
+    }
+    return false;
+  }
+
+  public async deleteProduct(productId: string): Promise<boolean> {
+    this.state.products = this.state.products.filter((p) => p.id !== productId);
+    await deleteProductFromFirestore(productId);
+    this.addAuditLog('PRODUCT_DELETED', 'Product', productId, `Removed product ${productId}`);
+    this.saveToStorage();
+    return true;
   }
 
   public updateProductionJobProgress(jobId: string, producedQty: number) {
@@ -1655,6 +1896,7 @@ class Store {
 
   public updateCompanySettings(settings: CompanySettings) {
     this.state.companySettings = { ...settings };
+    saveDocument('company_settings', 'default', settings);
     this.addAuditLog(
       'SETTINGS_UPDATED',
       'CompanySettings',
@@ -1668,6 +1910,7 @@ class Store {
     const task = this.state.tasks.find((t) => t.id === taskId);
     if (task) {
       task.status = status;
+      saveDocument('tasks', task.id, task);
       this.saveToStorage();
     }
   }
@@ -1688,6 +1931,7 @@ class Store {
       createdAt: new Date().toISOString(),
     };
     this.state.tasks.unshift(newTask);
+    saveDocument('tasks', newTask.id, newTask);
     this.saveToStorage();
     return newTask;
   }
@@ -1712,6 +1956,7 @@ class Store {
       notes: rec.notes,
     };
     this.state.complianceRecords.unshift(newRecord);
+    saveDocument('compliance_records', newRecord.id, newRecord);
     this.addAuditLog(
       'COMPLIANCE_RECORD_ADDED',
       'ComplianceRecord',
@@ -1758,78 +2003,44 @@ class Store {
     phone?: string;
     companyName?: string;
   }): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
-    const existing = this.state.users.find(
-      (u) => u.email.toLowerCase() === params.email.trim().toLowerCase()
-    );
-    if (existing) {
-      return { success: false, error: 'An account with this email already exists.' };
+    const res = await registerWithEmail(params);
+    if (res.success && res.user) {
+      this.state.currentUser = res.user;
+      this.addAuditLog(
+        'USER_SIGNED_UP',
+        'User',
+        res.user.id,
+        `User ${res.user.name} created account (${res.user.role})`
+      );
+      this.notify();
     }
-
-    const hashed = await hashPassword(params.password);
-    const newUser: UserProfile = {
-      id: `usr-${Date.now()}`,
-      name: params.name.trim(),
-      email: params.email.trim().toLowerCase(),
-      role: params.role || 'VIEWER',
-      phone: params.phone || '',
-      companyName: params.companyName || '',
-      passwordHash: hashed,
-      active: true,
-    };
-
-    this.state.users.push(newUser);
-    this.state.currentUser = newUser;
-    this.addAuditLog(
-      'USER_SIGNED_UP',
-      'User',
-      newUser.id,
-      `User ${newUser.name} created account (${newUser.role})`
-    );
-    this.saveToStorage();
-    return { success: true, user: newUser };
+    return res;
   }
 
   public async logIn(
     email: string,
     password: string
   ): Promise<{ success: boolean; user?: UserProfile; error?: string }> {
-    const user = this.state.users.find(
-      (u) => u.email.toLowerCase() === email.trim().toLowerCase()
-    );
-    if (!user) {
-      return { success: false, error: 'Invalid email address or account not found.' };
+    const res = await loginWithEmail(email, password);
+    if (res.success && res.user) {
+      this.state.currentUser = res.user;
+      this.addAuditLog(
+        'USER_LOGGED_IN',
+        'User',
+        res.user.id,
+        `${res.user.name} logged into ${res.user.role} console`
+      );
+      this.notify();
     }
-
-    if (user.passwordHash) {
-      const hashedInput = await hashPassword(password);
-      if (user.passwordHash !== hashedInput) {
-        return { success: false, error: 'Incorrect password. Please verify and retry.' };
-      }
-    }
-
-    this.state.currentUser = user;
-    this.addAuditLog(
-      'USER_LOGGED_IN',
-      'User',
-      user.id,
-      `${user.name} logged into ${user.role} console`
-    );
-    this.saveToStorage();
-    return { success: true, user };
+    return res;
   }
 
-  public logOut(): void {
+  public async logOut(): Promise<void> {
     const previousName = this.state.currentUser.name;
-    const guestUser: UserProfile = {
-      id: 'guest',
-      name: 'Guest Client',
-      email: 'guest@leelapalace.com',
-      role: 'VIEWER',
-      active: false,
-    };
-    this.state.currentUser = guestUser;
-    this.addAuditLog('USER_LOGGED_OUT', 'User', guestUser.id, `${previousName} logged out`);
-    this.saveToStorage();
+    await logoutUser();
+    this.state.currentUser = DEFAULT_GUEST_USER;
+    this.addAuditLog('USER_LOGGED_OUT', 'User', 'guest', `${previousName} logged out`);
+    this.notify();
   }
 
   public switchUser(user: UserProfile): void {
@@ -1840,7 +2051,7 @@ class Store {
       user.id,
       `Switched active session to ${user.name} (${user.role})`
     );
-    this.saveToStorage();
+    this.notify();
   }
 }
 

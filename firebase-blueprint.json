@@ -1,5 +1,25 @@
 {
   "entities": {
+    "users": {
+      "title": "User",
+      "description": "User account document in Firestore",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": {
+          "type": "string",
+          "enum": ["SUPER_ADMIN", "ADMIN", "PRODUCTION_MANAGER", "SALES_EXECUTIVE", "VIEWER"]
+        },
+        "phone": { "type": "string" },
+        "companyName": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
     "user_profiles": {
       "title": "UserProfile",
       "description": "Enterprise user accounts, role-based access, and corporate credentials",
@@ -15,6 +35,7 @@
         "phone": { "type": "string" },
         "companyName": { "type": "string" },
         "photoURL": { "type": "string" },
+        "active": { "type": "boolean" },
         "createdAt": { "type": "string" }
       },
       "required": ["id", "name", "email", "role"]
@@ -26,6 +47,7 @@
       "properties": {
         "id": { "type": "string" },
         "companyName": { "type": "string" },
+        "businessName": { "type": "string" },
         "contactName": { "type": "string" },
         "email": { "type": "string" },
         "phone": { "type": "string" },
@@ -34,12 +56,29 @@
           "enum": ["NEW", "CONTACTED", "SAMPLE_DESIGNED", "QUOTATION_SENT", "NEGOTIATION", "CONVERTED", "LOST"]
         },
         "estimatedBottles": { "type": "number" },
+        "quantity": { "type": "number" },
         "bottleSize": { "type": "string" },
         "notes": { "type": "string" },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
-      "required": ["id", "companyName", "contactName", "status"]
+      "required": ["id", "contactName", "phone"]
+    },
+    "customers": {
+      "title": "Customer",
+      "description": "Converted B2B client corporate directory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyName": { "type": "string" },
+        "contactName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "gstin": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "companyName", "contactName"]
     },
     "quotes": {
       "title": "Quote",
@@ -49,6 +88,7 @@
         "id": { "type": "string" },
         "quoteNumber": { "type": "string" },
         "clientName": { "type": "string" },
+        "businessName": { "type": "string" },
         "bottleSize": { "type": "string" },
         "quantity": { "type": "number" },
         "unitPrice": { "type": "number" },
@@ -61,7 +101,7 @@
         },
         "createdAt": { "type": "string" }
       },
-      "required": ["id", "quoteNumber", "clientName", "quantity", "totalAmount", "status"]
+      "required": ["id", "quoteNumber", "quantity", "totalAmount", "status"]
     },
     "orders": {
       "title": "Order",
@@ -71,6 +111,7 @@
         "id": { "type": "string" },
         "orderNumber": { "type": "string" },
         "clientName": { "type": "string" },
+        "businessName": { "type": "string" },
         "bottleSize": { "type": "string" },
         "quantity": { "type": "number" },
         "totalAmount": { "type": "number" },
@@ -82,10 +123,39 @@
           "type": "string",
           "enum": ["PENDING", "ADVANCE_PAID", "PAID"]
         },
+        "artworkApproved": { "type": "boolean" },
         "deliveryAddress": { "type": "string" },
         "createdAt": { "type": "string" }
       },
-      "required": ["id", "orderNumber", "clientName", "status", "paymentStatus"]
+      "required": ["id", "orderNumber", "status", "paymentStatus"]
+    },
+    "inventory": {
+      "title": "InventoryItem",
+      "description": "Raw material stock levels (virgin PET preforms, caps, label rolls)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "sku": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "currentStock": { "type": "number" },
+        "unitCost": { "type": "number" }
+      },
+      "required": ["id", "name", "currentStock"]
+    },
+    "tasks": {
+      "title": "Task",
+      "description": "Internal CRM workflow and fulfillment task assignment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "dueDate": { "type": "string" }
+      },
+      "required": ["id", "title"]
     },
     "company_settings": {
       "title": "CompanySettings",
@@ -93,20 +163,60 @@
       "type": "object",
       "properties": {
         "companyName": { "type": "string" },
-        "tagline": { "type": "string" },
+        "brandName": { "type": "string" },
         "ownerName": { "type": "string" },
         "email": { "type": "string" },
         "phone": { "type": "string" },
-        "whatsapp": { "type": "string" },
         "address": { "type": "string" },
         "gstin": { "type": "string" },
-        "fssaiNumber": { "type": "string" },
-        "bisNumber": { "type": "string" }
+        "fssaiLicence": { "type": "string" },
+        "bisLicence": { "type": "string" }
       },
       "required": ["companyName", "ownerName", "email", "phone"]
+    },
+    "products": {
+      "title": "Product",
+      "description": "Customizable water bottle formats and packaging SKU catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "size": { "type": "string" },
+        "style": { "type": "string" },
+        "tagline": { "type": "string" },
+        "description": { "type": "string" },
+        "basePrice": { "type": "number" },
+        "moq": { "type": "number" },
+        "labelType": { "type": "string" },
+        "unitsPerCrate": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "size", "basePrice"]
+    },
+    "audit_logs": {
+      "title": "AuditLog",
+      "description": "Security audit trails of administrative mutations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "action": { "type": "string" },
+        "entity": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "userName", "action"]
     }
   },
   "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/users" },
+      "description": "User account document keyed by Firebase Auth UID"
+    },
     "/user_profiles/{userId}": {
       "schema": { "$ref": "#/entities/user_profiles" },
       "description": "User profile collection keyed by Firebase Auth UID"
@@ -114,6 +224,10 @@
     "/leads/{leadId}": {
       "schema": { "$ref": "#/entities/leads" },
       "description": "Customer inquiry and sales pipeline documents"
+    },
+    "/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/customers" },
+      "description": "Corporate client directory documents"
     },
     "/quotes/{quoteId}": {
       "schema": { "$ref": "#/entities/quotes" },
@@ -123,9 +237,25 @@
       "schema": { "$ref": "#/entities/orders" },
       "description": "Production orders and dispatch tracking records"
     },
+    "/inventory/{itemId}": {
+      "schema": { "$ref": "#/entities/inventory" },
+      "description": "Raw materials inventory tracking"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/tasks" },
+      "description": "Internal CRM and dispatch tasks"
+    },
     "/company_settings/{settingId}": {
       "schema": { "$ref": "#/entities/company_settings" },
       "description": "Master company settings and configuration document"
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/products" },
+      "description": "Product catalog and bottle format configurations"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/audit_logs" },
+      "description": "Immutable audit log records"
     }
   }
 }

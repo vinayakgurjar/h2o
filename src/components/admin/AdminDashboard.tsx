@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { store } from '../../services/store';
+import { AdminDashboardSkeleton } from './AdminDashboardSkeleton';
 import {
   DollarSign,
   Package,
@@ -12,6 +13,7 @@ import {
   Sparkles,
   PhoneCall,
   FileCheck,
+  RefreshCw,
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -25,6 +27,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenQuickNewLead,
   onOpenQuickNewQuote,
 }) => {
+  const [loading, setLoading] = useState(store.isFirestoreLoading());
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = store.subscribe(() => {
+      setLoading(store.isFirestoreLoading());
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleManualSync = async () => {
+    setRefreshing(true);
+    await store.refreshFirestoreData();
+    setRefreshing(false);
+  };
+
+  if (loading) {
+    return <AdminDashboardSkeleton />;
+  }
+
   const state = store.getState();
   const leads = state.leads;
   const orders = state.orders;

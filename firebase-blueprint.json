@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "user_profiles": {
+      "title": "UserProfile",
+      "description": "Enterprise user accounts, role-based access, and corporate credentials",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": {
+          "type": "string",
+          "enum": ["SUPER_ADMIN", "ADMIN", "PRODUCTION_MANAGER", "SALES_EXECUTIVE", "VIEWER"]
+        },
+        "phone": { "type": "string" },
+        "companyName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "leads": {
+      "title": "Lead",
+      "description": "B2B client inquiries and custom bottle branding leads",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "companyName": { "type": "string" },
+        "contactName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["NEW", "CONTACTED", "SAMPLE_DESIGNED", "QUOTATION_SENT", "NEGOTIATION", "CONVERTED", "LOST"]
+        },
+        "estimatedBottles": { "type": "number" },
+        "bottleSize": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "companyName", "contactName", "status"]
+    },
+    "quotes": {
+      "title": "Quote",
+      "description": "Customized B2B volume pricing quotations with GST breakdown",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "quoteNumber": { "type": "string" },
+        "clientName": { "type": "string" },
+        "bottleSize": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unitPrice": { "type": "number" },
+        "subtotal": { "type": "number" },
+        "gstAmount": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": ["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"]
+        },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "quoteNumber", "clientName", "quantity", "totalAmount", "status"]
+    },
+    "orders": {
+      "title": "Order",
+      "description": "Confirmed production and delivery batches",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "clientName": { "type": "string" },
+        "bottleSize": { "type": "string" },
+        "quantity": { "type": "number" },
+        "totalAmount": { "type": "number" },
+        "status": {
+          "type": "string",
+          "enum": ["CONFIRMED", "ARTWORK_APPROVED", "IN_PRODUCTION", "PACKED", "OUT_FOR_DELIVERY", "DELIVERED"]
+        },
+        "paymentStatus": {
+          "type": "string",
+          "enum": ["PENDING", "ADVANCE_PAID", "PAID"]
+        },
+        "deliveryAddress": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "orderNumber", "clientName", "status", "paymentStatus"]
+    },
+    "company_settings": {
+      "title": "CompanySettings",
+      "description": "Brand information, statutory certifications, and logistics endpoints",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" },
+        "tagline": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "address": { "type": "string" },
+        "gstin": { "type": "string" },
+        "fssaiNumber": { "type": "string" },
+        "bisNumber": { "type": "string" }
+      },
+      "required": ["companyName", "ownerName", "email", "phone"]
+    }
+  },
+  "firestore": {
+    "/user_profiles/{userId}": {
+      "schema": { "$ref": "#/entities/user_profiles" },
+      "description": "User profile collection keyed by Firebase Auth UID"
+    },
+    "/leads/{leadId}": {
+      "schema": { "$ref": "#/entities/leads" },
+      "description": "Customer inquiry and sales pipeline documents"
+    },
+    "/quotes/{quoteId}": {
+      "schema": { "$ref": "#/entities/quotes" },
+      "description": "Generated formal quotations with breakdown"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/orders" },
+      "description": "Production orders and dispatch tracking records"
+    },
+    "/company_settings/{settingId}": {
+      "schema": { "$ref": "#/entities/company_settings" },
+      "description": "Master company settings and configuration document"
+    }
+  }
+}

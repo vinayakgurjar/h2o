@@ -1,0 +1,10 @@
+{
+  "name": "MLUE",
+  "description": "H2O — Next-Gen Bio-Adaptive Energy Fuel. 0 Sugar, 200mg Clean Caffeine, Nootropics and Bio-Electrolytes for esports, creators, nightlife, and extreme sports.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

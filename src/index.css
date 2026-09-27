@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #050505;
+  --bg-secondary: #0A0D1F;
+  --bg-indigo: #0B0E23;
+  --bg-surface: #0E1229;
+  --bg-surface-elevated: #151B3B;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-neon: rgba(189, 0, 255, 0.4);
+  
+  --text-heading: #FFFFFF;
+  --text-body: #CBD5E1;
+  --text-muted: #64748B;
+
+  /* Color System from Master Prompt */
+  --electric-purple: #BD00FF;
+  --neon-blue: #0088FF;
+  --acid-lime: #39FF14;
+  --electric-cyan: #00F0FF;
+
+  /* Primary Action Accent */
+  --color-cta: #BD00FF;
+  --color-cta-hover: #A855F7;
+}
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    color: #CBD5E1;
+    background-color: #050505;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-syne {
+    font-family: 'Syne', system-ui, sans-serif;
+    color: #FFFFFF;
+    letter-spacing: -0.03em;
+  }
+
+  .font-space {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+  }
+}
+
+/* Gradients */
+.bg-gradient-black-indigo-purple {
+  background: linear-gradient(135deg, #050505 0%, #0B0E23 50%, #1A0D33 100%);
+}
+
+.bg-gradient-black-blue-cyan {
+  background: linear-gradient(135deg, #050505 0%, #091E3A 50%, #002B47 100%);
+}
+
+.bg-gradient-black-purple-lime {
+  background: linear-gradient(135deg, #050505 0%, #150B28 60%, #0D2615 100%);
+}
+
+/* Futuristic Cyber Grid & Energy Trails */
+.cyber-grid {
+  background-size: 44px 44px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+.cyber-grid-indigo {
+  background-size: 48px 48px;
+  background-image: 
+    linear-gradient(to right, rgba(189, 0, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(189, 0, 255, 0.06) 1px, transparent 1px);
+}
+
+/* Strategic Neon Glows */
+.glow-purple {
+  box-shadow: 0 0 30px rgba(189, 0, 255, 0.35);
+}
+
+.glow-purple-sm {
+  box-shadow: 0 0 14px rgba(189, 0, 255, 0.25);
+}
+
+.glow-cyan {
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.35);
+}
+
+.glow-lime {
+  box-shadow: 0 0 30px rgba(57, 255, 20, 0.35);
+}
+
+.text-glow-purple {
+  text-shadow: 0 0 20px rgba(189, 0, 255, 0.7);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 20px rgba(0, 240, 255, 0.7);
+}
+
+.text-glow-lime {
+  text-shadow: 0 0 20px rgba(57, 255, 20, 0.7);
+}
+
+/* Glassmorphism Surface Cards */
+.glass-cyber {
+  background: rgba(11, 14, 35, 0.65);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-cyber-interactive {
+  background: rgba(11, 14, 35, 0.65);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-cyber-interactive:hover {
+  background: rgba(17, 22, 53, 0.85);
+  border-color: rgba(189, 0, 255, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px -10px rgba(189, 0, 255, 0.25);
+}
+
+/* Smooth Infinite Marquee Animation */
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 24s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Custom scrollbar matching dark cyber theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+::-webkit-scrollbar-thumb {
+  background: #151B3B;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #BD00FF;
+}
+
+/* Soft Pulsating Neon Glow Keyframes */
+@keyframes neon-pulse-soft {
+  0%, 100% {
+    box-shadow: 
+      0 0 25px rgba(189, 0, 255, 0.4),
+      0 0 60px rgba(0, 240, 255, 0.25),
+      inset 0 0 25px rgba(189, 0, 255, 0.2);
+    border-color: rgba(189, 0, 255, 0.65);
+  }
+  50% {
+    box-shadow: 
+      0 0 45px rgba(189, 0, 255, 0.75),
+      0 0 95px rgba(0, 240, 255, 0.45),
+      inset 0 0 40px rgba(0, 240, 255, 0.35);
+    border-color: rgba(0, 240, 255, 0.85);
+  }
+}
+
+@keyframes aura-pulse-soft {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.98);
+    filter: blur(55px);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.06);
+    filter: blur(75px);
+  }
+}
+
+.animate-neon-pulse-soft {
+  animation: neon-pulse-soft 2.8s ease-in-out infinite;
+}
+
+.animate-aura-pulse-soft {
+  animation: aura-pulse-soft 2.8s ease-in-out infinite;
+}
+
+

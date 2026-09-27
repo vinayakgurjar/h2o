@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Test connection endpoint for initialization verification
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // User profiles
+    match /user_profiles/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) || isAuthenticated();
+    }
+
+    // Public inquiry and B2B Leads
+    match /leads/{leadId} {
+      allow read: if isAuthenticated();
+      allow create: if true; // Public lead capture forms from landing page
+      allow update, delete: if isAuthenticated();
+    }
+
+    // Quotations
+    match /quotes/{quoteId} {
+      allow read: if true; // Allows clients with quote ID to review their quote
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Production Orders
+    match /orders/{orderId} {
+      allow read: if true; // Order tracking by order number / token
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // Company Brand & Statutory Settings
+    match /company_settings/{settingId} {
+      allow read: if true; // Public brand name, certifications, contact info
+      allow write: if isAuthenticated();
+    }
+  }
+}
